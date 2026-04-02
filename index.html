@@ -1,0 +1,96 @@
+import React, { useEffect, useState } from "react";
+                    {(coin.liquidityScore / 1_000_000).toFixed(1)}M
+                  </div>
+
+                  <TargetList targets={coin.targets} />
+                </CardContent>
+              </Card>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+
+      {/* MAJOR COINS */}
+
+      <div>
+        <h2 className="text-xl font-semibold mb-3">
+          Major Coins (Always Visible)
+        </h2>
+
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          {majors.map((coin) => (
+            <Card key={coin.symbol} className="rounded-2xl shadow">
+              <CardContent className="p-4 space-y-1 text-sm">
+                <div className="font-semibold">
+                  {coin.symbol}
+                </div>
+
+                <div>
+                  <DirectionBadge direction={coin.direction} />
+                </div>
+
+                <div>Price: {coin.price}</div>
+
+                <div>
+                  Score:
+                  {(coin.liquidityScore / 1_000_000).toFixed(1)}M
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      {/* ALL TRADES TABLE */}
+
+      <Card className="rounded-2xl shadow">
+        <CardContent className="p-4 overflow-x-auto">
+          <h2 className="text-xl font-semibold mb-3">
+            All Trading Opportunities
+          </h2>
+
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b text-left">
+                <th className="p-2">Coin</th>
+                <th className="p-2">Direction</th>
+                <th className="p-2">Price</th>
+                <th className="p-2">1D</th>
+                <th className="p-2">12H</th>
+                <th className="p-2">8H</th>
+                <th className="p-2">Liquidity</th>
+                <th className="p-2">Targets</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {coins.map((c) => (
+                <tr key={c.symbol} className="border-b hover:bg-gray-50">
+                  <td className="p-2 font-medium">{c.symbol}</td>
+
+                  <td className="p-2">
+                    <DirectionBadge direction={c.direction} />
+                  </td>
+
+                  <td className="p-2">{c.price}</td>
+
+                  <td className="p-2">{c.energy1D}</td>
+                  <td className="p-2">{c.energy12H}</td>
+                  <td className="p-2">{c.energy8H}</td>
+
+                  <td className="p-2 font-semibold">
+                    {(c.liquidityScore / 1_000_000).toFixed(1)}M
+                  </td>
+
+                  <td className="p-2">
+                    <TargetList targets={c.targets} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
