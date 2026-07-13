@@ -2,8 +2,8 @@
 <html lang="sl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Bybit Heatmap</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Volume Profile Scanner</title>
 
 <style>
 
@@ -14,230 +14,321 @@ body{
     margin:20px;
 }
 
-#heatmap{
-    width:100%;
-    height:700px;
+select,button{
+    padding:8px;
+    margin:5px;
+}
+
+canvas{
+    background:#111827;
     border:1px solid #333;
+    margin-top:20px;
 }
 
-.panel{
-    display:flex;
-    gap:20px;
-    margin-bottom:20px;
+table{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:20px;
 }
 
-.card{
+th,td{
+    border:1px solid #334155;
+    padding:8px;
+    text-align:center;
+}
+
+th{
     background:#1e293b;
-    padding:15px;
-    border-radius:10px;
-    min-width:250px;
 }
 
 .green{
     color:#22c55e;
+    font-weight:bold;
 }
 
 .red{
     color:#ef4444;
+    font-weight:bold;
 }
 
 </style>
 </head>
 <body>
 
-<h1>BTCUSDT Order Book Heatmap</h1>
+<h1>Volume Profile Scanner</h1>
 
-<div class="panel">
+<select id="symbol">
+    <option>BTCUSDT</option>
+    <option>ETHUSDT</option>
+    <option>SOLUSDT</option>
+    <option>ADAUSDT</option>
+    <option>XRPUSDT</option>
+    <option>SUIUSDT</option>
+</select>
 
-<div class="card">
-    <h3>Imbalance</h3>
-    <div id="imbalance">-</div>
-</div>
+<button onclick="runAnalysis()">
+Analiziraj
+</button>
 
-<div class="card">
-    <h3>Največji Buy Wall</h3>
-    <div id="buyWall">-</div>
-</div>
+<table id="results">
+<thead>
+<tr>
+<th>Period</th>
+<th>POC</th>
+<th>Buy Zone</th>
+<th>Sell Zone</th>
+<th>VA Low</th>
+<th>VA High</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
 
-<div class="card">
-    <h3>Največji Sell Wall</h3>
-    <div id="sellWall">-</div>
-</div>
-
-</div>
-
-<canvas id="heatmap"></canvas>
+<canvas id="heatmap" width="1200" height="700"></canvas>
 
 <script>
 
-const canvas =
-    document.getElementById("heatmap");
+const periods = [
+    {name:"1D",days:1},
+    {name:"3D",days:3},
+    {name:"1W",days:7},
+    {name:"2W",days:14},
+    {name:"1M",days:30},
+    {name:"3M",days:90},
+    {name:"6M",days:180}
+];
 
-const ctx =
-    canvas.getContext("2d");
+async function loadCandles(symbol,days){
 
-canvas.width =
-    window.innerWidth - 50;
-
-canvas.height = 700;
-
-let history = [];
-
-async function loadBook(){
+    let limit = Math.min(days*24,1000);
 
     const url =
-'https://api.bybit.com/v5/market/orderbook?category=linear&symbol=BTCUSDT&limit=200';
+      `https://api.bybit.com/v5/market/kline?category=linear&symbol=${symbol}&interval=60&limit=${limit}`;
 
-    const r = await fetch(url);
+    const response = await fetch(url);
+    const json = await response.json();
 
-    const json =
-        await r.json();
-
-    const bids =
-        json.result.b;
-
-    const asks =
-        json.result.a;
-
-    process(bids,asks);
+    return json.result.list.reverse();
 
 }
 
-function process(bids,asks){
+function buildProfile(candles){
 
-    const bidVolume =
-        bids.reduce(
-           (a,b)=>a+Number(b[1]),0
-        );
+    let prices = [];
 
-    const askVolume =
-        asks.reduce(
-           (a,b)=>a+Number(b[1]),0
-        );
+    candles.forEach(c=>{
 
-    const imbalance =
-        (
-         (bidVolume-askVolume)
-         /(bidVolume+askVolume)
-        )*100;
+        const high = Number(c[2]);
+        const low = Number(c[3]);
+        const volume = Number(c[5]);
 
-    document
-      .getElementById("imbalance")
-      .innerHTML =
-      imbalance.toFixed(2)+" %";
+        const mid = (high+low)/2;
 
-    const biggestBid =
-        bids.reduce(
-         (a,b)=>
-          Number(a[1])>Number(b[1])
-          ?a:b
-        );
+        prices.push({
+            price:mid,
+            volume:volume
+        });
 
-    const biggestAsk =
-        asks.reduce(
-         (a,b)=>
-          Number(a[1])>Number(b[1])
-          ?a:b
-        );
-
-    document
-    .getElementById("buyWall")
-    .innerHTML =
-    biggestBid[0]
-    +" | "
-    +biggestBid[1];
-
-    document
-    .getElementById("sellWall")
-    .innerHTML =
-    biggestAsk[0]
-    +" | "
-    +biggestAsk[1];
-
-    history.push({
-        bids,
-        asks
     });
 
-    if(history.length > 250){
-        history.shift();
+    const min =
+      Math.min(...prices.map(x=>x.price));
+
+    const max =
+      Math.max(...prices.map(x=>x.price));
+
+    const bins = 50;
+
+    const size =
+      (max-min)/bins;
+
+    let profile = [];
+
+    for(let i=0;i<bins;i++){
+
+        profile.push({
+            price:min+(i*size),
+            volume:0
+        });
+
     }
 
-    draw();
+    prices.forEach(p=>{
+
+        const idx =
+          Math.min(
+            bins-1,
+            Math.floor((p.price-min)/size)
+          );
+
+        profile[idx].volume += p.volume;
+
+    });
+
+    return profile;
 
 }
 
-function draw(){
+function calculateLevels(profile){
+
+    const sorted =
+       [...profile]
+       .sort((a,b)=>b.volume-a.volume);
+
+    const poc = sorted[0];
+
+    const total =
+      profile.reduce((s,p)=>s+p.volume,0);
+
+    const target = total*0.70;
+
+    let cumulative = 0;
+    let selected = [];
+
+    for(let row of sorted){
+
+        cumulative += row.volume;
+        selected.push(row);
+
+        if(cumulative >= target)
+            break;
+    }
+
+    const prices =
+      selected.map(x=>x.price);
+
+    const val =
+      Math.min(...prices);
+
+    const vah =
+      Math.max(...prices);
+
+    return {
+
+        poc:poc.price,
+
+        buyZone:val,
+
+        sellZone:vah,
+
+        val:val,
+
+        vah:vah
+
+    };
+
+}
+
+function drawHeatmap(profile){
+
+    const canvas =
+      document.getElementById("heatmap");
+
+    const ctx =
+      canvas.getContext("2d");
 
     ctx.clearRect(
-      0,
-      0,
-      canvas.width,
-      canvas.height
+       0,
+       0,
+       canvas.width,
+       canvas.height
     );
 
-    const colWidth = 4;
+    const maxVol =
+      Math.max(...profile.map(x=>x.volume));
 
-    history.forEach((snapshot,x)=>{
+    const barHeight =
+      canvas.height/profile.length;
 
-        const all =
-        [
-          ...snapshot.bids,
-          ...snapshot.asks
-        ];
+    profile.forEach((row,i)=>{
 
-        const maxSize =
-        Math.max(
-          ...all.map(a=>Number(a[1]))
+        const strength =
+           row.volume/maxVol;
+
+        ctx.fillStyle =
+           `rgba(0,255,0,${strength})`;
+
+        ctx.fillRect(
+            0,
+            canvas.height-(i*barHeight),
+            canvas.width*strength,
+            barHeight-1
         );
 
-        snapshot.bids.forEach((row,i)=>{
+        ctx.fillStyle = "white";
 
-            const size =
-                Number(row[1]);
-
-            const alpha =
-                size/maxSize;
-
-            ctx.fillStyle =
-                `rgba(0,255,0,${alpha})`;
-
-            ctx.fillRect(
-                x*colWidth,
-                canvas.height-(i*3),
-                colWidth,
-                3
-            );
-
-        });
-
-        snapshot.asks.forEach((row,i)=>{
-
-            const size =
-                Number(row[1]);
-
-            const alpha =
-                size/maxSize;
-
-            ctx.fillStyle =
-                `rgba(255,0,0,${alpha})`;
-
-            ctx.fillRect(
-                x*colWidth,
-                i*3,
-                colWidth,
-                3
-            );
-
-        });
+        ctx.fillText(
+            row.price.toFixed(2),
+            10,
+            canvas.height-(i*barHeight)
+        );
 
     });
 
 }
 
-loadBook();
+async function runAnalysis(){
 
-setInterval(loadBook,3000);
+    const symbol =
+      document.getElementById("symbol").value;
+
+    const tbody =
+      document.querySelector("#results tbody");
+
+    tbody.innerHTML = "";
+
+    let lastProfile = [];
+
+    for(const p of periods){
+
+        try{
+
+            const candles =
+              await loadCandles(
+                symbol,
+                p.days
+              );
+
+            const profile =
+              buildProfile(candles);
+
+            const levels =
+              calculateLevels(profile);
+
+            lastProfile = profile;
+
+            tbody.innerHTML += `
+            <tr>
+                <td>${p.name}</td>
+                <td>${levels.poc.toFixed(2)}</td>
+                <td class="green">
+                   ${levels.buyZone.toFixed(2)}
+                </td>
+                <td class="red">
+                   ${levels.sellZone.toFixed(2)}
+                </td>
+                <td>
+                   ${levels.val.toFixed(2)}
+                </td>
+                <td>
+                   ${levels.vah.toFixed(2)}
+                </td>
+            </tr>`;
+
+        }
+        catch(e){
+
+            console.error(e);
+
+        }
+
+    }
+
+    drawHeatmap(lastProfile);
+
+}
+
+runAnalysis();
 
 </script>
 
