@@ -3,80 +3,113 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Bybit Scanner</title>
+<title>Bybit Liquidity Scanner</title>
 
 <style>
-body {
-    font-family: Arial, sans-serif;
-    background: #111827;
-    color: white;
-    padding: 20px;
+body{
+    font-family:Arial,sans-serif;
+    background:#111827;
+    color:white;
+    padding:20px;
 }
 
-.card {
-    background: #1f2937;
-    padding: 15px;
-    border-radius: 10px;
-    margin-bottom: 10px;
+h1{
+    text-align:center;
 }
 
-button {
-    padding: 10px;
-    cursor: pointer;
+button{
+    padding:10px 15px;
+    border:none;
+    border-radius:6px;
+    cursor:pointer;
+    background:#2563eb;
+    color:white;
+}
+
+.card{
+    background:#1f2937;
+    border-radius:10px;
+    padding:15px;
+    margin:10px 0;
+}
+
+.green{
+    color:#22c55e;
+}
+
+.yellow{
+    color:#facc15;
+}
+
+.red{
+    color:#ef4444;
 }
 </style>
 </head>
-
 <body>
 
-<h1>Bybit Liquidity Scanner</h1>
+<h1>Bybit Energy Scanner</h1>
 
-<button onclick="loadData()">Osveži</button>
+<button onclick="loadData()">Osveži podatke</button>
 
+<p id="status"></p>
+
+<h2>TOP 3 kovanci</h2>
+<div id="top3"></div>
+
+<h2>Vsi kovanci</h2>
 <div id="results"></div>
 
 <script>
 
-const MAJOR_COINS = [
-    "BTCUSDT",
-    "ETHUSDT",
-    "SOLUSDT",
-    "ADAUSDT",
-    "SUIUSDT"
+const COINS = [
+"BTCUSDT",
+"ETHUSDT",
+"SOLUSDT",
+"ADAUSDT",
+"SUIUSDT",
+"XRPUSDT",
+"DOGEUSDT",
+"LINKUSDT",
+"AVAXUSDT"
 ];
 
-// EMA
-function ema(values, period) {
+function ema(values, period){
 
     const k = 2 / (period + 1);
+
     let result = [];
 
-    values.forEach((v, i) => {
-        if (i === 0) {
+    values.forEach((v,i)=>{
+
+        if(i===0){
             result.push(v);
-        } else {
-            result.push(v * k + result[i - 1] * (1 - k));
+        }else{
+            result.push(
+                v*k + result[i-1]*(1-k)
+            );
         }
+
     });
 
     return result;
 }
 
-// SMA
-function sma(values, period) {
+function sma(values, period){
 
-    const result = [];
+    let result = [];
 
-    for (let i = 0; i < values.length; i++) {
+    for(let i=0;i<values.length;i++){
 
-        if (i < period - 1) {
+        if(i<period-1){
             result.push(values[i]);
-        } else {
+        }else{
 
-            const slice = values.slice(i - period + 1, i + 1);
+            const slice =
+                values.slice(i-period+1,i+1);
 
             const avg =
-                slice.reduce((a, b) => a + b, 0) / period;
+                slice.reduce((a,b)=>a+b,0)/period;
 
             result.push(avg);
         }
@@ -85,51 +118,118 @@ function sma(values, period) {
     return result;
 }
 
-// Energy indikator
-function calculateEnergy(closes) {
+function calculateEnergy(closes){
 
-    const ema1 = ema(closes, 9);
-    const sma1 = sma(ema1, 6);
+    const ema1 = ema(closes,9);
 
-    const diff = ema1.map((v, i) =>
-        (v - sma1[i]) * 2 + 50
-    );
+    const sma1 = sma(ema1,6);
 
-    const energy = ema(diff, 3);
+    const diff =
+        ema1.map((v,i)=>
+            (v-sma1[i])*2+50
+        );
 
-    return energy[energy.length - 1];
+    const energy =
+        ema(diff,3);
+
+    return energy[energy.length-1];
 }
 
-// Demo podatki
-function loadData() {
+function energyColor(val){
 
-    const results = document.getElementById("results");
+    if(val > 60)
+        return "green";
 
-    results.innerHTML = "";
+    if(val > 50)
+        return "yellow";
 
-    MAJOR_COINS.forEach(symbol => {
+    return "red";
+}
 
-        const closes = [];
+async function fetchCoin(symbol){
 
-        for (let i = 0; i < 100; i++) {
-            closes.push(
-                100 + Math.random() * 20
-            );
-        }
+    try{
+
+        const url =
+        `https://api.bybit.com/v5/market/kline?category=linear&symbol=${symbol}&interval=60&limit=100`;
+
+        const response =
+            await fetch(url);
+
+        const data =
+            await response.json();
+
+        const closes =
+            data.result.list
+                .map(x=>parseFloat(x[4]))
+                .reverse();
 
         const energy =
-            calculateEnergy(closes).toFixed(2);
+            calculateEnergy(closes);
 
-        results.innerHTML += `
+        return {
+            symbol,
+            energy
+        };
+
+    }catch(e){
+
+        console.error(symbol,e);
+
+        return {
+            symbol,
+            energy:0
+        };
+    }
+}
+
+async function loadData(){
+
+    document.getElementById("status").innerText =
+        "Nalaganje...";
+
+    const results =
+        await Promise.all(
+            COINS.map(fetchCoin)
+        );
+
+    results.sort(
+        (a,b)=>b.energy-a.energy
+    );
+
+    const top3 =
+        results.slice(0,3);
+
+    document.getElementById("top3").innerHTML =
+        top3.map(c=>`
             <div class="card">
-                <h3>${symbol}</h3>
-                <p>Energy: ${energy}</p>
+                <h3>${c.symbol}</h3>
+                <p class="${energyColor(c.energy)}">
+                    Energy:
+                    ${c.energy.toFixed(2)}
+                </p>
             </div>
-        `;
-    });
+        `).join("");
+
+    document.getElementById("results").innerHTML =
+        results.map(c=>`
+            <div class="card">
+                <strong>${c.symbol}</strong>
+                <div class="${energyColor(c.energy)}">
+                    Energy:
+                    ${c.energy.toFixed(2)}
+                </div>
+            </div>
+        `).join("");
+
+    document.getElementById("status").innerText =
+        "Posodobljeno: "
+        + new Date().toLocaleTimeString();
 }
 
 loadData();
+
+setInterval(loadData,1800000);
 
 </script>
 
