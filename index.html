@@ -2,234 +2,242 @@
 <html lang="sl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Bybit Liquidity Scanner</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bybit Heatmap</title>
 
 <style>
+
 body{
-    font-family:Arial,sans-serif;
-    background:#111827;
+    background:#0f172a;
     color:white;
-    padding:20px;
+    font-family:Arial;
+    margin:20px;
 }
 
-h1{
-    text-align:center;
+#heatmap{
+    width:100%;
+    height:700px;
+    border:1px solid #333;
 }
 
-button{
-    padding:10px 15px;
-    border:none;
-    border-radius:6px;
-    cursor:pointer;
-    background:#2563eb;
-    color:white;
+.panel{
+    display:flex;
+    gap:20px;
+    margin-bottom:20px;
 }
 
 .card{
-    background:#1f2937;
-    border-radius:10px;
+    background:#1e293b;
     padding:15px;
-    margin:10px 0;
+    border-radius:10px;
+    min-width:250px;
 }
 
 .green{
     color:#22c55e;
 }
 
-.yellow{
-    color:#facc15;
-}
-
 .red{
     color:#ef4444;
 }
+
 </style>
 </head>
 <body>
 
-<h1>Bybit Energy Scanner</h1>
+<h1>BTCUSDT Order Book Heatmap</h1>
 
-<button onclick="loadData()">Osveži podatke</button>
+<div class="panel">
 
-<p id="status"></p>
+<div class="card">
+    <h3>Imbalance</h3>
+    <div id="imbalance">-</div>
+</div>
 
-<h2>TOP 3 kovanci</h2>
-<div id="top3"></div>
+<div class="card">
+    <h3>Največji Buy Wall</h3>
+    <div id="buyWall">-</div>
+</div>
 
-<h2>Vsi kovanci</h2>
-<div id="results"></div>
+<div class="card">
+    <h3>Največji Sell Wall</h3>
+    <div id="sellWall">-</div>
+</div>
+
+</div>
+
+<canvas id="heatmap"></canvas>
 
 <script>
 
-const COINS = [
-"BTCUSDT",
-"ETHUSDT",
-"SOLUSDT",
-"ADAUSDT",
-"SUIUSDT",
-"XRPUSDT",
-"DOGEUSDT",
-"LINKUSDT",
-"AVAXUSDT"
-];
+const canvas =
+    document.getElementById("heatmap");
 
-function ema(values, period){
+const ctx =
+    canvas.getContext("2d");
 
-    const k = 2 / (period + 1);
+canvas.width =
+    window.innerWidth - 50;
 
-    let result = [];
+canvas.height = 700;
 
-    values.forEach((v,i)=>{
+let history = [];
 
-        if(i===0){
-            result.push(v);
-        }else{
-            result.push(
-                v*k + result[i-1]*(1-k)
+async function loadBook(){
+
+    const url =
+'https://api.bybit.com/v5/market/orderbook?category=linear&symbol=BTCUSDT&limit=200';
+
+    const r = await fetch(url);
+
+    const json =
+        await r.json();
+
+    const bids =
+        json.result.b;
+
+    const asks =
+        json.result.a;
+
+    process(bids,asks);
+
+}
+
+function process(bids,asks){
+
+    const bidVolume =
+        bids.reduce(
+           (a,b)=>a+Number(b[1]),0
+        );
+
+    const askVolume =
+        asks.reduce(
+           (a,b)=>a+Number(b[1]),0
+        );
+
+    const imbalance =
+        (
+         (bidVolume-askVolume)
+         /(bidVolume+askVolume)
+        )*100;
+
+    document
+      .getElementById("imbalance")
+      .innerHTML =
+      imbalance.toFixed(2)+" %";
+
+    const biggestBid =
+        bids.reduce(
+         (a,b)=>
+          Number(a[1])>Number(b[1])
+          ?a:b
+        );
+
+    const biggestAsk =
+        asks.reduce(
+         (a,b)=>
+          Number(a[1])>Number(b[1])
+          ?a:b
+        );
+
+    document
+    .getElementById("buyWall")
+    .innerHTML =
+    biggestBid[0]
+    +" | "
+    +biggestBid[1];
+
+    document
+    .getElementById("sellWall")
+    .innerHTML =
+    biggestAsk[0]
+    +" | "
+    +biggestAsk[1];
+
+    history.push({
+        bids,
+        asks
+    });
+
+    if(history.length > 250){
+        history.shift();
+    }
+
+    draw();
+
+}
+
+function draw(){
+
+    ctx.clearRect(
+      0,
+      0,
+      canvas.width,
+      canvas.height
+    );
+
+    const colWidth = 4;
+
+    history.forEach((snapshot,x)=>{
+
+        const all =
+        [
+          ...snapshot.bids,
+          ...snapshot.asks
+        ];
+
+        const maxSize =
+        Math.max(
+          ...all.map(a=>Number(a[1]))
+        );
+
+        snapshot.bids.forEach((row,i)=>{
+
+            const size =
+                Number(row[1]);
+
+            const alpha =
+                size/maxSize;
+
+            ctx.fillStyle =
+                `rgba(0,255,0,${alpha})`;
+
+            ctx.fillRect(
+                x*colWidth,
+                canvas.height-(i*3),
+                colWidth,
+                3
             );
-        }
+
+        });
+
+        snapshot.asks.forEach((row,i)=>{
+
+            const size =
+                Number(row[1]);
+
+            const alpha =
+                size/maxSize;
+
+            ctx.fillStyle =
+                `rgba(255,0,0,${alpha})`;
+
+            ctx.fillRect(
+                x*colWidth,
+                i*3,
+                colWidth,
+                3
+            );
+
+        });
 
     });
 
-    return result;
 }
 
-function sma(values, period){
+loadBook();
 
-    let result = [];
-
-    for(let i=0;i<values.length;i++){
-
-        if(i<period-1){
-            result.push(values[i]);
-        }else{
-
-            const slice =
-                values.slice(i-period+1,i+1);
-
-            const avg =
-                slice.reduce((a,b)=>a+b,0)/period;
-
-            result.push(avg);
-        }
-    }
-
-    return result;
-}
-
-function calculateEnergy(closes){
-
-    const ema1 = ema(closes,9);
-
-    const sma1 = sma(ema1,6);
-
-    const diff =
-        ema1.map((v,i)=>
-            (v-sma1[i])*2+50
-        );
-
-    const energy =
-        ema(diff,3);
-
-    return energy[energy.length-1];
-}
-
-function energyColor(val){
-
-    if(val > 60)
-        return "green";
-
-    if(val > 50)
-        return "yellow";
-
-    return "red";
-}
-
-async function fetchCoin(symbol){
-
-    try{
-
-        const url =
-        `https://api.bybit.com/v5/market/kline?category=linear&symbol=${symbol}&interval=60&limit=100`;
-
-        const response =
-            await fetch(url);
-
-        const data =
-            await response.json();
-
-        const closes =
-            data.result.list
-                .map(x=>parseFloat(x[4]))
-                .reverse();
-
-        const energy =
-            calculateEnergy(closes);
-
-        return {
-            symbol,
-            energy
-        };
-
-    }catch(e){
-
-        console.error(symbol,e);
-
-        return {
-            symbol,
-            energy:0
-        };
-    }
-}
-
-async function loadData(){
-
-    document.getElementById("status").innerText =
-        "Nalaganje...";
-
-    const results =
-        await Promise.all(
-            COINS.map(fetchCoin)
-        );
-
-    results.sort(
-        (a,b)=>b.energy-a.energy
-    );
-
-    const top3 =
-        results.slice(0,3);
-
-    document.getElementById("top3").innerHTML =
-        top3.map(c=>`
-            <div class="card">
-                <h3>${c.symbol}</h3>
-                <p class="${energyColor(c.energy)}">
-                    Energy:
-                    ${c.energy.toFixed(2)}
-                </p>
-            </div>
-        `).join("");
-
-    document.getElementById("results").innerHTML =
-        results.map(c=>`
-            <div class="card">
-                <strong>${c.symbol}</strong>
-                <div class="${energyColor(c.energy)}">
-                    Energy:
-                    ${c.energy.toFixed(2)}
-                </div>
-            </div>
-        `).join("");
-
-    document.getElementById("status").innerText =
-        "Posodobljeno: "
-        + new Date().toLocaleTimeString();
-}
-
-loadData();
-
-setInterval(loadData,1800000);
+setInterval(loadBook,3000);
 
 </script>
 
