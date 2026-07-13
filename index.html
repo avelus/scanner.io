@@ -1,77 +1,137 @@
-import React, { useEffect, useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { motion } from "framer-motion";
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bybit Scanner</title>
 
-// =========================
-// CONFIGURATION
-// =========================
+<style>
+body {
+    font-family: Arial, sans-serif;
+    background: #111827;
+    color: white;
+    padding: 20px;
+}
 
-const REFRESH_OPTIONS = [10, 30, 60, 120];
+.card {
+    background: #1f2937;
+    padding: 15px;
+    border-radius: 10px;
+    margin-bottom: 10px;
+}
+
+button {
+    padding: 10px;
+    cursor: pointer;
+}
+</style>
+</head>
+
+<body>
+
+<h1>Bybit Liquidity Scanner</h1>
+
+<button onclick="loadData()">Osveži</button>
+
+<div id="results"></div>
+
+<script>
 
 const MAJOR_COINS = [
-  "BTCUSDT",
-  "ETHUSDT",
-  "SOLUSDT",
-  "ADAUSDT",
-  "SUIUSDT"
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT",
+    "ADAUSDT",
+    "SUIUSDT"
 ];
 
-// =========================
-// MAIN COMPONENT
-// =========================
+// EMA
+function ema(values, period) {
 
-export default function BybitLiquidityScanner() {
-  const [coins, setCoins] = useState([]);
-  const [top3, setTop3] = useState([]);
-  const [majors, setMajors] = useState([]);
-  const [intervalMin, setIntervalMin] = useState(30);
-  const [lastUpdate, setLastUpdate] = useState(null);
-  const [loading, setLoading] = useState(false);
-
-  // =========================
-  // REAL INDICATOR LOGIC
-  // =========================
-
-  // --- helpers ---
-
-  const ema = (values, period) => {
     const k = 2 / (period + 1);
-    let emaArray = [];
-
-    values.forEach((v, i) => {
-      if (i === 0) emaArray.push(v);
-      else emaArray.push(v * k + emaArray[i - 1] * (1 - k));
-    });
-
-    return emaArray;
-  };
-
-  const sma = (values, period) => {
     let result = [];
 
+    values.forEach((v, i) => {
+        if (i === 0) {
+            result.push(v);
+        } else {
+            result.push(v * k + result[i - 1] * (1 - k));
+        }
+    });
+
+    return result;
+}
+
+// SMA
+function sma(values, period) {
+
+    const result = [];
+
     for (let i = 0; i < values.length; i++) {
-      if (i < period - 1) result.push(values[i]);
-      else {
-        const slice = values.slice(i - period + 1, i + 1);
-        const avg = slice.reduce((a, b) => a + b, 0) / period;
-        result.push(avg);
-      }
+
+        if (i < period - 1) {
+            result.push(values[i]);
+        } else {
+
+            const slice = values.slice(i - period + 1, i + 1);
+
+            const avg =
+                slice.reduce((a, b) => a + b, 0) / period;
+
+            result.push(avg);
+        }
     }
 
     return result;
-  };
+}
 
-  const calculateEnergy = (closes) => {
-    const n1 = 9;
-    const n3 = 3;
+// Energy indikator
+function calculateEnergy(closes) {
 
-    const ema1 = ema(closes, n1);
+    const ema1 = ema(closes, 9);
     const sma1 = sma(ema1, 6);
 
-    const diff = ema1.map((v, i) => (v - sma1[i]) * 2 + 50);
+    const diff = ema1.map((v, i) =>
+        (v - sma1[i]) * 2 + 50
+    );
 
-    const energy = ema(diff, n3);
+    const energy = ema(diff, 3);
 
     return energy[energy.length - 1];
-  };
+}
+
+// Demo podatki
+function loadData() {
+
+    const results = document.getElementById("results");
+
+    results.innerHTML = "";
+
+    MAJOR_COINS.forEach(symbol => {
+
+        const closes = [];
+
+        for (let i = 0; i < 100; i++) {
+            closes.push(
+                100 + Math.random() * 20
+            );
+        }
+
+        const energy =
+            calculateEnergy(closes).toFixed(2);
+
+        results.innerHTML += `
+            <div class="card">
+                <h3>${symbol}</h3>
+                <p>Energy: ${energy}</p>
+            </div>
+        `;
+    });
+}
+
+loadData();
+
+</script>
+
+</body>
+</html>
