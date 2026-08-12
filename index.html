@@ -1,242 +1,712 @@
 <!DOCTYPE html>
-<html lang="sl">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta
+name="viewport"
+content="width=device-width, initial-scale=1.0"
+/>
 
-<title>Institutional Confluence Scanner</title>
+<title>Liquidity Confluence Tracker</title>
 
 <style>
 
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+font-family:Arial, sans-serif;
+}
+
 body{
-    background:#0f172a;
-    color:white;
-    font-family:Arial,sans-serif;
-    margin:20px;
+background:#0f1115;
+color:white;
+padding:20px;
+}
+
+.header{
+display:flex;
+justify-content:space-between;
+align-items:center;
+margin-bottom:20px;
+}
+
+button{
+background:#2563eb;
+border:none;
+color:white;
+padding:10px 16px;
+border-radius:8px;
+cursor:pointer;
+}
+
+button:hover{
+background:#1d4ed8;
 }
 
 .card{
-    background:#1e293b;
-    padding:15px;
-    border-radius:10px;
-    margin-bottom:20px;
+background:#171923;
+border-radius:12px;
+padding:20px;
+margin-bottom:20px;
 }
 
-canvas{
-    background:#111827;
-    border:1px solid #334155;
+.grid{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:20px;
 }
 
-.green{
-    color:#22c55e;
+.coin-card{
+background:#171923;
+border-radius:12px;
+padding:20px;
 }
 
-.red{
-    color:#ef4444;
+.section-title{
+font-size:22px;
+font-weight:bold;
+margin-bottom:15px;
 }
 
-.yellow{
-    color:#facc15;
+.sub-title{
+font-size:18px;
+margin-bottom:10px;
+color:#60a5fa;
+}
+
+.level{
+padding:4px 0;
+}
+
+.strong{
+color:#22c55e;
+font-weight:bold;
+}
+
+.top-row{
+display:flex;
+justify-content:space-between;
+padding:10px;
+background:#202432;
+border-radius:8px;
+margin-bottom:8px;
+}
+
+.tolerance{
+display:flex;
+gap:12px;
+align-items:center;
+margin-bottom:20px;
+}
+
+input[type=range]{
+width:250px;
+}
+
+.price{
+color:#fbbf24;
+font-weight:bold;
+}
+
+.rank{
+font-weight:bold;
+color:#22c55e;
+}
+
+@media(max-width:900px){
+
+.grid{
+grid-template-columns:1fr;
+}
+
+.top-row{
+flex-direction:column;
+gap:5px;
+}
+
 }
 
 </style>
 </head>
 <body>
 
-<h1>BTCUSDT Institutional Scanner</h1>
-
-<div class="card">
-
-<h3>Analiza</h3>
-
-<p>
-Current Price:
-<span id="price" class="yellow"></span>
-</p>
-
-<p>
-Buy Zone:
-<span id="buyzone" class="green"></span>
-</p>
-
-<p>
-Sell Zone:
-<span id="sellzone" class="red"></span>
-</p>
-
-<p>
-Buy Strength:
-<span id="buystrength"></span>
-</p>
-
-<p>
-Sell Strength:
-<span id="sellstrength"></span>
-</p>
-
-<p>
-Risk/Reward:
-<span id="rr"></span>
-</p>
-
+<div class="header">
+<h1>Crypto Liquidity Confluence Tracker</h1>
+<button onclick="refreshData()">Refresh</button>
 </div>
 
-<canvas id="chart" width="1200" height="800"></canvas>
+<div class="tolerance card">
+<label>Strong Level Tolerance:</label>
+<input
+type="range"
+min="0.1"
+max="2"
+step="0.1"
+value="0.5"
+id="tolerance"
+/>
+<span id="tolValue">0.5%</span>
+</div>
+
+<div class="card">
+<h2 class="section-title">
+TOP OPPORTUNITIES
+</h2>
+
+<div id="ranking"></div>
+</div>
+
+<div id="coinsContainer" class="grid"></div>
 
 <script>
 
-const currentPrice = 114850;
+/******************************************************************
+CONFIG
+******************************************************************/
 
-const buyZone = {
-    low:110000,
-    high:111200,
-    strength:96,
-    tf:["1D","3D","1W","2W","1M"]
+const COINS = [
+"BTCUSDT",
+"ETHUSDT",
+"SOLUSDT",
+"ADAUSDT",
+"XRPUSDT"
+];
+
+const REFRESH_INTERVAL = 300000;
+
+/******************************************************************
+DATA PROVIDER
+******************************************************************/
+
+class DataProvider {
+
+async getCurrentPrice(symbol){
+
+const basePrices = {
+BTCUSDT:118250,
+ETHUSDT:3900,
+SOLUSDT:180,
+ADAUSDT:0.92,
+XRPUSDT:1.20
 };
 
-const sellZone = {
-    low:124500,
-    high:126000,
-    strength:91,
-    tf:["1W","2W","1M","3M"]
+return basePrices[symbol];
+}
+
+async getHeatmap(symbol, period){
+
+const price = await this.getCurrentPrice(symbol);
+
+const arr = [];
+
+for(let i=0;i<20;i++){
+
+const distance =
+(Math.random()*10)+1;
+
+const direction =
+Math.random() > 0.5 ? 1 : -1;
+
+const levelPrice =
+price +
+(price * distance / 100 * direction);
+
+arr.push({
+price:Number(levelPrice.toFixed(2)),
+liquidity:Math.floor(
+Math.random()*10000000
+)
+});
+
+}
+
+return arr;
+}
+
+}
+
+/******************************************************************
+LIQUIDITY ANALYZER
+******************************************************************/
+
+class LiquidityAnalyzer {
+
+extractTopLevels(
+levels,
+currentPrice
+){
+
+const above =
+levels
+.filter(x=>x.price > currentPrice)
+.sort((a,b)=>b.liquidity-a.liquidity)
+.slice(0,3);
+
+const below =
+levels
+.filter(x=>x.price < currentPrice)
+.sort((a,b)=>b.liquidity-a.liquidity)
+.slice(0,3);
+
+return {
+above,
+below
 };
 
-document.getElementById("price").innerText =
-    currentPrice;
-
-document.getElementById("buyzone").innerText =
-    buyZone.low + " - " + buyZone.high;
-
-document.getElementById("sellzone").innerText =
-    sellZone.low + " - " + sellZone.high;
-
-document.getElementById("buystrength").innerText =
-    buyZone.strength + "/100";
-
-document.getElementById("sellstrength").innerText =
-    sellZone.strength + "/100";
-
-const risk =
-    ((currentPrice-buyZone.high)/currentPrice*100);
-
-const reward =
-    ((sellZone.low-currentPrice)/currentPrice*100);
-
-document.getElementById("rr").innerText =
-    "Risk " +
-    risk.toFixed(2) +
-    "% | Reward " +
-    reward.toFixed(2) +
-    "%";
-
-const canvas =
-    document.getElementById("chart");
-
-const ctx =
-    canvas.getContext("2d");
-
-const chartTop = 50;
-const chartBottom = 750;
-
-const maxPrice = 130000;
-const minPrice = 100000;
-
-function mapPrice(price){
-
-    return chartBottom -
-           ((price-minPrice)
-           /(maxPrice-minPrice))
-           *(chartBottom-chartTop);
 }
 
-function drawPriceScale(){
-
-    ctx.strokeStyle="#334155";
-
-    for(let p=minPrice;p<=maxPrice;p+=2000){
-
-        const y=mapPrice(p);
-
-        ctx.beginPath();
-        ctx.moveTo(100,y);
-        ctx.lineTo(1100,y);
-        ctx.stroke();
-
-        ctx.fillStyle="white";
-        ctx.fillText(p,20,y+5);
-    }
 }
 
-function drawZone(zone,color,label){
+/******************************************************************
+CONFLUENCE ANALYZER
+******************************************************************/
 
-    const y1=mapPrice(zone.high);
-    const y2=mapPrice(zone.low);
+class ConfluenceAnalyzer {
 
-    ctx.fillStyle=color;
+constructor(tolerance){
 
-    ctx.fillRect(
-        150,
-        y1,
-        850,
-        y2-y1
-    );
-
-    ctx.fillStyle="white";
-
-    ctx.font="16px Arial";
-
-    ctx.fillText(
-        label +
-        " Strength "
-        + zone.strength,
-        180,
-        (y1+y2)/2
-    );
-
-    ctx.fillText(
-        zone.tf.join(", "),
-        180,
-        ((y1+y2)/2)+20
-    );
+this.tolerance=tolerance;
 }
 
-function drawCurrentPrice(){
+withinTolerance(a,b){
 
-    const y=mapPrice(currentPrice);
+const diff =
+Math.abs(a-b) /
+((a+b)/2)
+*100;
 
-    ctx.strokeStyle="yellow";
-    ctx.lineWidth=3;
-
-    ctx.beginPath();
-    ctx.moveTo(100,y);
-    ctx.lineTo(1100,y);
-    ctx.stroke();
-
-    ctx.fillStyle="yellow";
-
-    ctx.fillText(
-        "CURRENT PRICE "
-        + currentPrice,
-        920,
-        y-10
-    );
+return diff <= this.tolerance;
 }
 
-drawPriceScale();
+findLevels(levels1D,levels2D){
 
-drawZone(
-    buyZone,
-    "rgba(34,197,94,0.35)",
-    "BUY ZONE"
+const result = {
+above:[],
+below:[]
+};
+
+for(const a of levels1D.above){
+
+for(const b of levels2D.above){
+
+if(
+this.withinTolerance(
+a.price,
+b.price
+)
+){
+
+result.above.push({
+price:(
+(a.price+b.price)/2
+).toFixed(2)
+});
+
+}
+
+}
+
+}
+
+for(const a of levels1D.below){
+
+for(const b of levels2D.below){
+
+if(
+this.withinTolerance(
+a.price,
+b.price
+)
+){
+
+result.below.push({
+price:(
+(a.price+b.price)/2
+).toFixed(2)
+});
+
+}
+
+}
+
+}
+
+return result;
+}
+
+}
+
+/******************************************************************
+RANKING ENGINE
+******************************************************************/
+
+class RankingEngine {
+
+build(coins){
+
+return coins
+.map(c=>{
+
+const all = [
+...c.strongLevels.above,
+...c.strongLevels.below
+];
+
+if(all.length===0){
+
+return {
+symbol:c.symbol,
+price:c.currentPrice,
+distancePct:0,
+distanceAbs:0
+};
+
+}
+
+let nearest = all[0];
+
+let bestDist =
+Math.abs(
+nearest.price -
+c.currentPrice
 );
 
-drawZone(
-    sellZone,
-    "rgba(239,68,68,0.35)",
-    "SELL ZONE"
+for(const s of all){
+
+const d =
+Math.abs(
+s.price -
+c.currentPrice
 );
 
-drawCurrentPrice();
+if(d < bestDist){
+
+bestDist = d;
+nearest = s;
+
+}
+
+}
+
+return {
+
+symbol:c.symbol,
+
+price:c.currentPrice,
+
+distanceAbs:
+bestDist.toFixed(2),
+
+distancePct:
+(
+bestDist /
+c.currentPrice *100
+).toFixed(2)
+
+};
+
+})
+.sort(
+(a,b)=>
+b.distancePct -
+a.distancePct
+);
+
+}
+
+}
+
+/******************************************************************
+UI RENDERER
+******************************************************************/
+
+class UIRenderer {
+
+renderRanking(data){
+
+const root =
+document.getElementById(
+"ranking"
+);
+
+root.innerHTML="";
+
+data.forEach(
+(item,index)=>{
+
+root.innerHTML += `
+<div class="top-row">
+<div class="rank">
+${index+1}. ${item.symbol}
+</div>
+
+<div>
+Price:
+${item.price}
+</div>
+
+<div>
+Distance:
+${item.distanceAbs}
+</div>
+
+<div>
+${item.distancePct}%
+</div>
+</div>
+`;
+
+});
+}
+
+renderCoins(result){
+
+const root =
+document.getElementById(
+"coinsContainer"
+);
+
+root.innerHTML="";
+
+result.forEach(c=>{
+
+root.innerHTML += `
+<div class="coin-card">
+
+<h2>
+${c.symbol}
+</h2>
+
+<br>
+
+<div class="price">
+Current Price:
+${c.currentPrice}
+</div>
+
+<br>
+
+<div class="sub-title">
+1D
+</div>
+
+<b>Above</b>
+
+${c.oneD.above.map(
+x=>`
+<div class="level">
+${x.price}
+ | Liquidity:
+${x.liquidity.toLocaleString()}
+</div>`
+).join("")}
+
+<br>
+
+<b>Below</b>
+
+${c.oneD.below.map(
+x=>`
+<div class="level">
+${x.price}
+ | Liquidity:
+${x.liquidity.toLocaleString()}
+</div>`
+).join("")}
+
+<hr style="margin:15px 0">
+
+<div class="sub-title">
+2D
+</div>
+
+<b>Above</b>
+
+${c.twoD.above.map(
+x=>`
+<div class="level">
+${x.price}
+ | Liquidity:
+${x.liquidity.toLocaleString()}
+</div>`
+).join("")}
+
+<br>
+
+<b>Below</b>
+
+${c.twoD.below.map(
+x=>`
+<div class="level">
+${x.price}
+ | Liquidity:
+${x.liquidity.toLocaleString()}
+</div>`
+).join("")}
+
+<hr style="margin:15px 0">
+
+<div class="strong">
+STRONG LEVELS
+</div>
+
+<br>
+
+<b>Above</b>
+
+${c.strongLevels.above.map(
+x=>`
+<div>
+${x.price}
+</div>
+`
+).join("")}
+
+<br>
+
+<b>Below</b>
+
+${c.strongLevels.below.map(
+x=>`
+<div>
+${x.price}
+</div>
+`
+).join("")}
+
+</div>
+`;
+
+});
+
+}
+
+}
+
+/******************************************************************
+APP
+******************************************************************/
+
+const provider =
+new DataProvider();
+
+const liquidityAnalyzer =
+new LiquidityAnalyzer();
+
+const renderer =
+new UIRenderer();
+
+async function refreshData(){
+
+const tolerance =
+Number(
+document.getElementById(
+"tolerance"
+).value
+);
+
+const confluenceAnalyzer =
+new ConfluenceAnalyzer(
+tolerance
+);
+
+const allCoins = [];
+
+for(const symbol of COINS){
+
+const currentPrice =
+await provider.getCurrentPrice(
+symbol
+);
+
+const heatmap1D =
+await provider.getHeatmap(
+symbol,
+"1D"
+);
+
+const heatmap2D =
+await provider.getHeatmap(
+symbol,
+"2D"
+);
+
+const oneD =
+liquidityAnalyzer
+.extractTopLevels(
+heatmap1D,
+currentPrice
+);
+
+const twoD =
+liquidityAnalyzer
+.extractTopLevels(
+heatmap2D,
+currentPrice
+);
+
+const strongLevels =
+confluenceAnalyzer
+.findLevels(
+oneD,
+twoD
+);
+
+allCoins.push({
+
+symbol,
+
+currentPrice,
+
+oneD,
+
+twoD,
+
+strongLevels
+
+});
+
+}
+
+const ranking =
+new RankingEngine()
+.build(allCoins);
+
+renderer.renderRanking(
+ranking
+);
+
+renderer.renderCoins(
+allCoins
+);
+
+}
+
+document
+.getElementById(
+"tolerance"
+)
+.addEventListener(
+"input",
+e=>{
+
+document.getElementById(
+"tolValue"
+).innerText =
+e.target.value + "%";
+
+refreshData();
+
+}
+);
+
+refreshData();
+
+setInterval(
+refreshData,
+REFRESH_INTERVAL
+);
 
 </script>
 
