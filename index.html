@@ -2,129 +2,108 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta
-name="viewport"
-content="width=device-width, initial-scale=1.0"
-/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <title>Liquidity Confluence Tracker</title>
 
 <style>
 
-*{
-margin:0;
-padding:0;
-box-sizing:border-box;
-font-family:Arial, sans-serif;
-}
-
 body{
-background:#0f1115;
-color:white;
-padding:20px;
+    background:#0d1117;
+    color:white;
+    font-family:Arial,sans-serif;
+    margin:0;
+    padding:20px;
 }
 
 .header{
-display:flex;
-justify-content:space-between;
-align-items:center;
-margin-bottom:20px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:20px;
+    flex-wrap:wrap;
+    gap:10px;
 }
 
 button{
-background:#2563eb;
-border:none;
-color:white;
-padding:10px 16px;
-border-radius:8px;
-cursor:pointer;
+    background:#2563eb;
+    color:white;
+    border:none;
+    padding:10px 18px;
+    border-radius:8px;
+    cursor:pointer;
 }
 
 button:hover{
-background:#1d4ed8;
+    background:#1d4ed8;
 }
 
 .card{
-background:#171923;
-border-radius:12px;
-padding:20px;
-margin-bottom:20px;
+    background:#161b22;
+    border-radius:12px;
+    padding:20px;
+    margin-bottom:20px;
 }
 
 .grid{
-display:grid;
-grid-template-columns:1fr 1fr;
-gap:20px;
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(450px,1fr));
+    gap:20px;
 }
 
 .coin-card{
-background:#171923;
-border-radius:12px;
-padding:20px;
-}
-
-.section-title{
-font-size:22px;
-font-weight:bold;
-margin-bottom:15px;
-}
-
-.sub-title{
-font-size:18px;
-margin-bottom:10px;
-color:#60a5fa;
-}
-
-.level{
-padding:4px 0;
-}
-
-.strong{
-color:#22c55e;
-font-weight:bold;
-}
-
-.top-row{
-display:flex;
-justify-content:space-between;
-padding:10px;
-background:#202432;
-border-radius:8px;
-margin-bottom:8px;
-}
-
-.tolerance{
-display:flex;
-gap:12px;
-align-items:center;
-margin-bottom:20px;
-}
-
-input[type=range]{
-width:250px;
+    background:#161b22;
+    border-radius:12px;
+    padding:20px;
 }
 
 .price{
-color:#fbbf24;
-font-weight:bold;
+    color:#fbbf24;
+    font-size:18px;
+    font-weight:bold;
 }
 
-.rank{
-font-weight:bold;
-color:#22c55e;
+.strong{
+    color:#22c55e;
+    font-weight:bold;
 }
 
-@media(max-width:900px){
-
-.grid{
-grid-template-columns:1fr;
+.level{
+    padding:3px 0;
 }
 
-.top-row{
-flex-direction:column;
-gap:5px;
+.rank-row{
+    display:flex;
+    justify-content:space-between;
+    padding:10px;
+    margin-bottom:8px;
+    border-radius:8px;
+    background:#21262d;
+    flex-wrap:wrap;
 }
 
+h2,h3{
+    margin-top:0;
+}
+
+input[type=range]{
+    width:250px;
+}
+
+.section{
+    margin-top:15px;
+}
+
+@media(max-width:768px){
+
+    .grid{
+        grid-template-columns:1fr;
+    }
+
+    .rank-row{
+        flex-direction:column;
+        gap:5px;
+    }
 }
 
 </style>
@@ -132,580 +111,607 @@ gap:5px;
 <body>
 
 <div class="header">
-<h1>Crypto Liquidity Confluence Tracker</h1>
-<button onclick="refreshData()">Refresh</button>
-</div>
 
-<div class="tolerance card">
-<label>Strong Level Tolerance:</label>
-<input
-type="range"
-min="0.1"
-max="2"
-step="0.1"
-value="0.5"
-id="tolerance"
-/>
-<span id="tolValue">0.5%</span>
+    <h1>Crypto Liquidity Confluence Tracker</h1>
+
+    <button onclick="loadData()">
+        Refresh
+    </button>
+
 </div>
 
 <div class="card">
-<h2 class="section-title">
-TOP OPPORTUNITIES
-</h2>
 
-<div id="ranking"></div>
+    <label>
+        Strong Level Tolerance:
+        <span id="tolText">0.5%</span>
+    </label>
+
+    <br><br>
+
+    <input
+        id="tolerance"
+        type="range"
+        min="0.1"
+        max="2"
+        value="0.5"
+        step="0.1"
+    >
+
 </div>
 
-<div id="coinsContainer" class="grid"></div>
+<div class="card">
+
+    <h2>TOP OPPORTUNITIES</h2>
+
+    <div id="ranking"></div>
+
+</div>
+
+<div
+    id="coins"
+    class="grid"
+></div>
 
 <script>
 
-/******************************************************************
-CONFIG
-******************************************************************/
-
 const COINS = [
-"BTCUSDT",
-"ETHUSDT",
-"SOLUSDT",
-"ADAUSDT",
-"XRPUSDT"
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT",
+    "ADAUSDT",
+    "XRPUSDT"
 ];
 
-const REFRESH_INTERVAL = 300000;
+class BinanceProvider {
 
-/******************************************************************
-DATA PROVIDER
-******************************************************************/
+    async getCurrentPrice(symbol){
 
-class DataProvider {
+        const r = await fetch(
+            `https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`
+        );
 
-async getCurrentPrice(symbol){
+        const data = await r.json();
 
-const basePrices = {
-BTCUSDT:118250,
-ETHUSDT:3900,
-SOLUSDT:180,
-ADAUSDT:0.92,
-XRPUSDT:1.20
-};
-
-return basePrices[symbol];
+        return Number(data.price);
+    }
 }
 
-async getHeatmap(symbol, period){
+class BybitProvider {
 
-const price = await this.getCurrentPrice(symbol);
+    async getCurrentPrice(symbol){
 
-const arr = [];
+        try{
 
-for(let i=0;i<20;i++){
+            const r = await fetch(
+                `https://api.bybit.com/v5/market/tickers?category=linear&symbol=${symbol}`
+            );
 
-const distance =
-(Math.random()*10)+1;
+            const data = await r.json();
 
-const direction =
-Math.random() > 0.5 ? 1 : -1;
+            return Number(
+                data.result.list[0].lastPrice
+            );
 
-const levelPrice =
-price +
-(price * distance / 100 * direction);
+        }catch(err){
 
-arr.push({
-price:Number(levelPrice.toFixed(2)),
-liquidity:Math.floor(
-Math.random()*10000000
-)
-});
-
+            return null;
+        }
+    }
 }
 
-return arr;
+class AggregatedProvider {
+
+    constructor(){
+
+        this.binance =
+            new BinanceProvider();
+
+        this.bybit =
+            new BybitProvider();
+    }
+
+    async getCurrentPrice(symbol){
+
+        const binance =
+            await this.binance
+            .getCurrentPrice(symbol);
+
+        const bybit =
+            await this.bybit
+            .getCurrentPrice(symbol);
+
+        if(bybit){
+
+            return Number(
+                (
+                    (binance+bybit)/2
+                ).toFixed(6)
+            );
+        }
+
+        return binance;
+    }
 }
 
-}
+class HeatmapProvider {
 
-/******************************************************************
-LIQUIDITY ANALYZER
-******************************************************************/
+    async getHeatmap(currentPrice){
+
+        const levels = [];
+
+        for(let i=0;i<25;i++){
+
+            const percent =
+                (Math.random()*10)+1;
+
+            const direction =
+                Math.random() > 0.5 ? 1 : -1;
+
+            const price =
+                currentPrice +
+                (
+                    currentPrice *
+                    percent /100 *
+                    direction
+                );
+
+            levels.push({
+
+                price:
+                    Number(
+                        price.toFixed(4)
+                    ),
+
+                liquidity:
+                    Math.floor(
+                        Math.random()*10000000
+                    )
+
+            });
+
+        }
+
+        return levels;
+    }
+}
 
 class LiquidityAnalyzer {
 
-extractTopLevels(
-levels,
-currentPrice
-){
+    extract(levels,currentPrice){
 
-const above =
-levels
-.filter(x=>x.price > currentPrice)
-.sort((a,b)=>b.liquidity-a.liquidity)
-.slice(0,3);
+        return {
 
-const below =
-levels
-.filter(x=>x.price < currentPrice)
-.sort((a,b)=>b.liquidity-a.liquidity)
-.slice(0,3);
+            above:
 
-return {
-above,
-below
-};
+            levels
+            .filter(
+                x =>
+                x.price > currentPrice
+            )
+            .sort(
+                (a,b)=>
+                b.liquidity-a.liquidity
+            )
+            .slice(0,3),
 
+            below:
+
+            levels
+            .filter(
+                x =>
+                x.price < currentPrice
+            )
+            .sort(
+                (a,b)=>
+                b.liquidity-a.liquidity
+            )
+            .slice(0,3)
+
+        };
+    }
 }
-
-}
-
-/******************************************************************
-CONFLUENCE ANALYZER
-******************************************************************/
 
 class ConfluenceAnalyzer {
 
-constructor(tolerance){
+    constructor(tolerance){
 
-this.tolerance=tolerance;
+        this.tolerance = tolerance;
+    }
+
+    isMatch(a,b){
+
+        const diff =
+
+            Math.abs(a-b)
+            /
+            ((a+b)/2)
+            *100;
+
+        return diff <= this.tolerance;
+    }
+
+    find(oneD,twoD){
+
+        const result = {
+
+            above:[],
+            below:[]
+        };
+
+        for(const a of oneD.above){
+
+            for(const b of twoD.above){
+
+                if(
+                    this.isMatch(
+                        a.price,
+                        b.price
+                    )
+                ){
+
+                    result.above.push({
+
+                        price:
+                        (
+                            (a.price+b.price)
+                            /2
+                        ).toFixed(2)
+
+                    });
+                }
+            }
+        }
+
+        for(const a of oneD.below){
+
+            for(const b of twoD.below){
+
+                if(
+                    this.isMatch(
+                        a.price,
+                        b.price
+                    )
+                ){
+
+                    result.below.push({
+
+                        price:
+                        (
+                            (a.price+b.price)
+                            /2
+                        ).toFixed(2)
+
+                    });
+                }
+            }
+        }
+
+        return result;
+    }
 }
-
-withinTolerance(a,b){
-
-const diff =
-Math.abs(a-b) /
-((a+b)/2)
-*100;
-
-return diff <= this.tolerance;
-}
-
-findLevels(levels1D,levels2D){
-
-const result = {
-above:[],
-below:[]
-};
-
-for(const a of levels1D.above){
-
-for(const b of levels2D.above){
-
-if(
-this.withinTolerance(
-a.price,
-b.price
-)
-){
-
-result.above.push({
-price:(
-(a.price+b.price)/2
-).toFixed(2)
-});
-
-}
-
-}
-
-}
-
-for(const a of levels1D.below){
-
-for(const b of levels2D.below){
-
-if(
-this.withinTolerance(
-a.price,
-b.price
-)
-){
-
-result.below.push({
-price:(
-(a.price+b.price)/2
-).toFixed(2)
-});
-
-}
-
-}
-
-}
-
-return result;
-}
-
-}
-
-/******************************************************************
-RANKING ENGINE
-******************************************************************/
 
 class RankingEngine {
 
-build(coins){
+    build(coins){
 
-return coins
-.map(c=>{
+        return coins.map(c=>{
 
-const all = [
-...c.strongLevels.above,
-...c.strongLevels.below
-];
+            const levels = [
 
-if(all.length===0){
+                ...c.strong.above,
+                ...c.strong.below
+            ];
 
-return {
-symbol:c.symbol,
-price:c.currentPrice,
-distancePct:0,
-distanceAbs:0
-};
+            if(levels.length===0){
 
+                return {
+
+                    symbol:c.symbol,
+                    distancePct:0,
+                    distanceAbs:0,
+                    price:c.price
+
+                };
+            }
+
+            let nearest =
+                Infinity;
+
+            for(const level of levels){
+
+                const d =
+                    Math.abs(
+                        Number(level.price)
+                        -
+                        c.price
+                    );
+
+                nearest =
+                    Math.min(
+                        nearest,
+                        d
+                    );
+            }
+
+            return {
+
+                symbol:c.symbol,
+
+                price:c.price,
+
+                distanceAbs:
+                nearest.toFixed(4),
+
+                distancePct:
+                (
+                    nearest /
+                    c.price *
+                    100
+                ).toFixed(2)
+
+            };
+
+        }).sort(
+            (a,b)=>
+            b.distancePct -
+            a.distancePct
+        );
+    }
 }
-
-let nearest = all[0];
-
-let bestDist =
-Math.abs(
-nearest.price -
-c.currentPrice
-);
-
-for(const s of all){
-
-const d =
-Math.abs(
-s.price -
-c.currentPrice
-);
-
-if(d < bestDist){
-
-bestDist = d;
-nearest = s;
-
-}
-
-}
-
-return {
-
-symbol:c.symbol,
-
-price:c.currentPrice,
-
-distanceAbs:
-bestDist.toFixed(2),
-
-distancePct:
-(
-bestDist /
-c.currentPrice *100
-).toFixed(2)
-
-};
-
-})
-.sort(
-(a,b)=>
-b.distancePct -
-a.distancePct
-);
-
-}
-
-}
-
-/******************************************************************
-UI RENDERER
-******************************************************************/
-
-class UIRenderer {
-
-renderRanking(data){
-
-const root =
-document.getElementById(
-"ranking"
-);
-
-root.innerHTML="";
-
-data.forEach(
-(item,index)=>{
-
-root.innerHTML += `
-<div class="top-row">
-<div class="rank">
-${index+1}. ${item.symbol}
-</div>
-
-<div>
-Price:
-${item.price}
-</div>
-
-<div>
-Distance:
-${item.distanceAbs}
-</div>
-
-<div>
-${item.distancePct}%
-</div>
-</div>
-`;
-
-});
-}
-
-renderCoins(result){
-
-const root =
-document.getElementById(
-"coinsContainer"
-);
-
-root.innerHTML="";
-
-result.forEach(c=>{
-
-root.innerHTML += `
-<div class="coin-card">
-
-<h2>
-${c.symbol}
-</h2>
-
-<br>
-
-<div class="price">
-Current Price:
-${c.currentPrice}
-</div>
-
-<br>
-
-<div class="sub-title">
-1D
-</div>
-
-<b>Above</b>
-
-${c.oneD.above.map(
-x=>`
-<div class="level">
-${x.price}
- | Liquidity:
-${x.liquidity.toLocaleString()}
-</div>`
-).join("")}
-
-<br>
-
-<b>Below</b>
-
-${c.oneD.below.map(
-x=>`
-<div class="level">
-${x.price}
- | Liquidity:
-${x.liquidity.toLocaleString()}
-</div>`
-).join("")}
-
-<hr style="margin:15px 0">
-
-<div class="sub-title">
-2D
-</div>
-
-<b>Above</b>
-
-${c.twoD.above.map(
-x=>`
-<div class="level">
-${x.price}
- | Liquidity:
-${x.liquidity.toLocaleString()}
-</div>`
-).join("")}
-
-<br>
-
-<b>Below</b>
-
-${c.twoD.below.map(
-x=>`
-<div class="level">
-${x.price}
- | Liquidity:
-${x.liquidity.toLocaleString()}
-</div>`
-).join("")}
-
-<hr style="margin:15px 0">
-
-<div class="strong">
-STRONG LEVELS
-</div>
-
-<br>
-
-<b>Above</b>
-
-${c.strongLevels.above.map(
-x=>`
-<div>
-${x.price}
-</div>
-`
-).join("")}
-
-<br>
-
-<b>Below</b>
-
-${c.strongLevels.below.map(
-x=>`
-<div>
-${x.price}
-</div>
-`
-).join("")}
-
-</div>
-`;
-
-});
-
-}
-
-}
-
-/******************************************************************
-APP
-******************************************************************/
 
 const provider =
-new DataProvider();
+    new AggregatedProvider();
 
-const liquidityAnalyzer =
-new LiquidityAnalyzer();
+const heatmapProvider =
+    new HeatmapProvider();
 
-const renderer =
-new UIRenderer();
+const analyzer =
+    new LiquidityAnalyzer();
 
-async function refreshData(){
+async function loadData(){
 
-const tolerance =
-Number(
-document.getElementById(
-"tolerance"
-).value
-);
+    const tolerance =
+        Number(
+            document
+            .getElementById(
+                "tolerance"
+            ).value
+        );
 
-const confluenceAnalyzer =
-new ConfluenceAnalyzer(
-tolerance
-);
+    const confluence =
+        new ConfluenceAnalyzer(
+            tolerance
+        );
 
-const allCoins = [];
+    const coins = [];
 
-for(const symbol of COINS){
+    for(const symbol of COINS){
 
-const currentPrice =
-await provider.getCurrentPrice(
-symbol
-);
+        const currentPrice =
+            await provider
+            .getCurrentPrice(
+                symbol
+            );
 
-const heatmap1D =
-await provider.getHeatmap(
-symbol,
-"1D"
-);
+        const heatmap1D =
+            await heatmapProvider
+            .getHeatmap(
+                currentPrice
+            );
 
-const heatmap2D =
-await provider.getHeatmap(
-symbol,
-"2D"
-);
+        const heatmap2D =
+            await heatmapProvider
+            .getHeatmap(
+                currentPrice
+            );
 
-const oneD =
-liquidityAnalyzer
-.extractTopLevels(
-heatmap1D,
-currentPrice
-);
+        const oneD =
+            analyzer.extract(
+                heatmap1D,
+                currentPrice
+            );
 
-const twoD =
-liquidityAnalyzer
-.extractTopLevels(
-heatmap2D,
-currentPrice
-);
+        const twoD =
+            analyzer.extract(
+                heatmap2D,
+                currentPrice
+            );
 
-const strongLevels =
-confluenceAnalyzer
-.findLevels(
-oneD,
-twoD
-);
+        const strong =
+            confluence.find(
+                oneD,
+                twoD
+            );
 
-allCoins.push({
+        coins.push({
 
-symbol,
+            symbol,
+            price:currentPrice,
+            oneD,
+            twoD,
+            strong
 
-currentPrice,
+        });
+    }
 
-oneD,
-
-twoD,
-
-strongLevels
-
-});
-
+    render(coins);
 }
 
-const ranking =
-new RankingEngine()
-.build(allCoins);
+function render(data){
 
-renderer.renderRanking(
-ranking
-);
+    const ranking =
+        new RankingEngine()
+        .build(data);
 
-renderer.renderCoins(
-allCoins
-);
+    document
+    .getElementById(
+        "ranking"
+    ).innerHTML =
 
+    ranking.map((r,i)=>`
+
+        <div class="rank-row">
+
+            <div>
+                ${i+1}. ${r.symbol}
+            </div>
+
+            <div>
+                Price:
+                ${r.price}
+            </div>
+
+            <div>
+                Distance:
+                ${r.distanceAbs}
+            </div>
+
+            <div>
+                ${r.distancePct}%
+            </div>
+
+        </div>
+
+    `).join("");
+
+    document
+    .getElementById(
+        "coins"
+    ).innerHTML =
+
+    data.map(c=>`
+
+    <div class="coin-card">
+
+        <h2>${c.symbol}</h2>
+
+        <div class="price">
+            Current Price:
+            ${c.price}
+        </div>
+
+        <div class="section">
+
+            <h3>1D</h3>
+
+            <b>Above</b>
+
+            ${c.oneD.above.map(x=>`
+
+                <div class="level">
+                    ${x.price}
+                    |
+                    ${x.liquidity.toLocaleString()}
+                </div>
+
+            `).join("")}
+
+            <br>
+
+            <b>Below</b>
+
+            ${c.oneD.below.map(x=>`
+
+                <div class="level">
+                    ${x.price}
+                    |
+                    ${x.liquidity.toLocaleString()}
+                </div>
+
+            `).join("")}
+
+        </div>
+
+        <div class="section">
+
+            <h3>2D</h3>
+
+            <b>Above</b>
+
+            ${c.twoD.above.map(x=>`
+
+                <div class="level">
+                    ${x.price}
+                    |
+                    ${x.liquidity.toLocaleString()}
+                </div>
+
+            `).join("")}
+
+            <br>
+
+            <b>Below</b>
+
+            ${c.twoD.below.map(x=>`
+
+                <div class="level">
+                    ${x.price}
+                    |
+                    ${x.liquidity.toLocaleString()}
+                </div>
+
+            `).join("")}
+
+        </div>
+
+        <div class="section">
+
+            <div class="strong">
+                STRONG LEVELS
+            </div>
+
+            <br>
+
+            <b>Above</b>
+
+            ${c.strong.above.map(x=>`
+
+                <div>
+                    ${x.price}
+                </div>
+
+            `).join("")}
+
+            <br>
+
+            <b>Below</b>
+
+            ${c.strong.below.map(x=>`
+
+                <div>
+                    ${x.price}
+                </div>
+
+            `).join("")}
+
+        </div>
+
+    </div>
+
+    `).join("");
 }
 
 document
-.getElementById(
-"tolerance"
-)
+.getElementById("tolerance")
 .addEventListener(
-"input",
-e=>{
+    "input",
+    e=>{
+        document
+        .getElementById(
+            "tolText"
+        ).innerText =
+        e.target.value + "%";
 
-document.getElementById(
-"tolValue"
-).innerText =
-e.target.value + "%";
-
-refreshData();
-
-}
+        loadData();
+    }
 );
 
-refreshData();
+loadData();
 
 setInterval(
-refreshData,
-REFRESH_INTERVAL
+    loadData,
+    300000
 );
 
 </script>
