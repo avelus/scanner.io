@@ -1,1 +1,0 @@
-Liquidity Zones V2 demo project.
