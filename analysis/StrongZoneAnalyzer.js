@@ -1,0 +1,1 @@
+export class StrongZoneAnalyzer{build(a,b){return a.map(z=>({mergedRangeLow:z.rangeLow,mergedRangeHigh:z.rangeHigh,dominantPeakPrice:z.dominantPeakPrice,combinedDensity:z.totalDensity}))}}

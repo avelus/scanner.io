@@ -1,0 +1,1 @@
+export class ZoneBuilder{build(symbol,period,peaks){if(!peaks.length)return[];const d=peaks[0];return[{id:`${symbol}_${period}`,symbol,period,rangeLow:d.price,rangeHigh:d.price,totalDensity:d.densityScore,dominantPeakPrice:d.price,dominantPeakLiquidity:d.liquidity}]}}

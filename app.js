@@ -1,0 +1,12 @@
+import {DensityAnalyzer} from "./analysis/DensityAnalyzer.js";
+import {PeakDetector} from "./analysis/PeakDetector.js";
+import {ZoneBuilder} from "./analysis/ZoneBuilder.js";
+import {StrongZoneAnalyzer} from "./analysis/StrongZoneAnalyzer.js";
+import {HeatmapCanvasRenderer} from "./renderers/HeatmapCanvasRenderer.js";
+const levels=[{price:64800,liquidity:5},{price:65000,liquidity:11},{price:65120,liquidity:19},{price:65200,liquidity:13},{price:65400,liquidity:8}];
+const density=new DensityAnalyzer().calculate(levels,0.2);
+const peaks=new PeakDetector().findLocalPeaks(density);
+const zones=new ZoneBuilder().build('BTC','1D',peaks);
+const strong=new StrongZoneAnalyzer().build(zones,zones);
+new HeatmapCanvasRenderer().render(document.getElementById('heatmap'),65100,zones,strong);
+document.getElementById('output').innerText=JSON.stringify({zones,strong},null,2);
