@@ -1,1 +1,0 @@
-export class HeatmapCanvasRenderer{render(c,cp,z,s){const x=c.getContext("2d");x.fillStyle="#0D4E96";x.fillRect(50,80,700,30);x.strokeStyle="#FFD700";x.strokeRect(50,80,700,30);x.fillStyle="#fff";x.beginPath();x.arc(400,95,5,0,6.28);x.fill();}}
