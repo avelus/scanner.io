@@ -1,1 +1,0 @@
-export class DensityAnalyzer{calculate(levels,p){const s=[...levels].sort((a,b)=>a.price-b.price);return s.map(l=>{const w=l.price*p/100;return {...l,densityScore:s.filter(x=>Math.abs(x.price-l.price)<=w).reduce((a,b)=>a+b.liquidity,0)}})}}

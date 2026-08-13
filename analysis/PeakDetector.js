@@ -1,1 +1,0 @@
-export class PeakDetector{findLocalPeaks(p){const r=[];for(let i=1;i<p.length-1;i++){if(p[i].densityScore>p[i-1].densityScore&&p[i].densityScore>p[i+1].densityScore)r.push(p[i])}return r}}
